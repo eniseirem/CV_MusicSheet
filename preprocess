@@ -1,0 +1,84 @@
+import sys
+import cv2 as cv
+import numpy as np
+from matplotlib import pyplot as plt
+from collections import Counter
+from copy import deepcopy
+from PIL import Image
+#from midiutil.MidiFile import MIDIFile
+
+####### this is the sample code from the given source.
+
+
+def show_wait_destroy(winname, img):
+    cv.imwrite(str(winname)+".png", img)
+    cv.imshow(winname, img)
+    cv.moveWindow(winname, 500, 0)
+    cv.waitKey(0)
+    cv.destroyWindow(winname)
+
+
+inp_sheet = cv.imread("data/sample.png", cv.IMREAD_COLOR)
+
+if len(inp_sheet.shape) != 2:
+    gray = cv.cvtColor(inp_sheet, cv.COLOR_BGR2GRAY)
+else:
+    gray = inp_sheet
+
+#show_wait_destroy("gray", gray)
+
+# Apply adaptiveThreshold at the bitwise_not of gray, notice the ~ symbol
+gray = cv.bitwise_not(gray)
+bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 15, -2)
+# Show binary image
+#show_wait_destroy("binary", bw)
+
+# Create the images that will use to extract the horizontal and vertical lines
+horizontal = np.copy(bw)
+vertical = np.copy(bw)
+
+# Specify size on horizontal axis
+cols = horizontal.shape[1]
+horizontal_size = cols // 30
+# Create structure element for extracting horizontal lines through morphology operations
+horizontalStructure = cv.getStructuringElement(cv.MORPH_RECT, (horizontal_size, 1))
+# Apply morphology operations
+horizontal = cv.erode(horizontal, horizontalStructure)
+horizontal = cv.dilate(horizontal, horizontalStructure)
+# Show extracted horizontal lines
+show_wait_destroy("horizontal", horizontal)
+
+# Remove horizontal
+horizontal_kernel = cv.getStructuringElement(cv.MORPH_RECT, (25,1))
+detected_lines = cv.morphologyEx(bw, cv.MORPH_OPEN, horizontal_kernel, iterations=2)
+cnts = cv.findContours(detected_lines, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+for c in cnts:
+    cv.drawContours(inp_sheet, [c], -1, (255,255,255), 2)
+
+# Repair image
+repair_kernel = cv.getStructuringElement(cv.MORPH_RECT, (1,6))
+result = 255 - cv.morphologyEx(255 - inp_sheet, cv.MORPH_CLOSE, repair_kernel, iterations=1)
+
+show_wait_destroy("removed lines", result)
+circle_inp = np.copy(bw)
+
+if len(result.shape) != 2:
+    gray = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
+else:
+    gray = result
+
+img_blur = cv.medianBlur(gray, 5)
+show_wait_destroy("removed lines", img_blur)
+
+circles = cv.HoughCircles(img_blur, cv.HOUGH_GRADIENT, 1, inp_sheet.shape[0]/64, param1=200, param2=10, minRadius=5, maxRadius=30)
+# Draw detected circles
+if circles is not None:
+    circles = np.uint16(np.around(circles))
+    for i in circles[0, :]:
+        # Draw outer circle
+        cv.circle(inp_sheet, (i[0], i[1]), i[2], (0, 255, 0), 2)
+        # Draw inner circle
+        cv.circle(inp_sheet, (i[0], i[1]), 2, (0, 0, 255), 3)
+
+show_wait_destroy("circles", inp_sheet)
