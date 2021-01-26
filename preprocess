@@ -19,6 +19,7 @@ def show_wait_destroy(winname, img):
 
 
 inp_sheet = cv.imread("data/sample.png", cv.IMREAD_COLOR)
+corners1 = np.copy(inp_sheet)
 
 if len(inp_sheet.shape) != 2:
     gray = cv.cvtColor(inp_sheet, cv.COLOR_BGR2GRAY)
@@ -46,7 +47,7 @@ horizontalStructure = cv.getStructuringElement(cv.MORPH_RECT, (horizontal_size, 
 horizontal = cv.erode(horizontal, horizontalStructure)
 horizontal = cv.dilate(horizontal, horizontalStructure)
 # Show extracted horizontal lines
-show_wait_destroy("horizontal", horizontal)
+#show_wait_destroy("horizontal", horizontal)
 
 # Remove horizontal
 horizontal_kernel = cv.getStructuringElement(cv.MORPH_RECT, (25,1))
@@ -56,20 +57,16 @@ cnts = cnts[0] if len(cnts) == 2 else cnts[1]
 for c in cnts:
     cv.drawContours(inp_sheet, [c], -1, (255,255,255), 2)
 
+
 # Repair image
 repair_kernel = cv.getStructuringElement(cv.MORPH_RECT, (1,6))
 result = 255 - cv.morphologyEx(255 - inp_sheet, cv.MORPH_CLOSE, repair_kernel, iterations=1)
 
-show_wait_destroy("removed lines", result)
+#show_wait_destroy("removed lines", result)
 circle_inp = np.copy(bw)
 
-if len(result.shape) != 2:
-    gray = cv.cvtColor(result, cv.COLOR_BGR2GRAY)
-else:
-    gray = result
-
 img_blur = cv.medianBlur(gray, 5)
-show_wait_destroy("removed lines", img_blur)
+#show_wait_destroy("removed lines", img_blur)
 
 circles = cv.HoughCircles(img_blur, cv.HOUGH_GRADIENT, 1, inp_sheet.shape[0]/64, param1=200, param2=10, minRadius=5, maxRadius=30)
 # Draw detected circles
@@ -81,4 +78,82 @@ if circles is not None:
         # Draw inner circle
         cv.circle(inp_sheet, (i[0], i[1]), 2, (0, 0, 255), 3)
 
-show_wait_destroy("circles", inp_sheet)
+#show_wait_destroy("circles", inp_sheet)
+
+
+#detecting corners
+
+lines = cv.bitwise_not(horizontal)
+
+blur = cv.GaussianBlur(lines, (3,3), 0)
+thresh = cv.threshold(blur, 220, 255, cv.THRESH_BINARY_INV)[1]
+
+x, y, w, h = cv.boundingRect(thresh)           #  Replaced code
+                                                #
+left = (x, np.argmax(thresh[:, x]))             #
+right = (x+w-1, np.argmax(thresh[:, x+w-1]))    #
+top = (np.argmax(thresh[y, :]), y)              #
+bottom = (np.argmax(thresh[y+h-1, :]), y+h-1)
+
+#cv.drawContours(corners1, [c], -1, (36, 255, 12), 2)
+cv.circle(corners1, left, 8, (0, 50, 255), -1)
+cv.circle(corners1, right, 8, (0, 255, 255), -1)
+cv.circle(corners1, top, 8, (255, 50, 0), -1)
+cv.circle(corners1, bottom, 8, (255, 255, 0), -1)
+print('left: {}'.format(left))
+print('right: {}'.format(right))
+print('top: {}'.format(top))
+print('bottom: {}'.format(bottom))
+
+show_wait_destroy("ss3", corners1)
+
+roi = corners1[y:y + h, x:x + w]
+roi = cv.resize(roi, (w, h))
+show_wait_destroy("ss5", roi)
+
+point_inp = np.array([x,y,w,h])
+
+##ref
+
+ref = cv.imread("data/21448434.jpg", cv.IMREAD_COLOR)
+ref2= np.copy(ref)
+if len(ref.shape) != 2:
+    gray = cv.cvtColor(ref, cv.COLOR_BGR2GRAY)
+else:
+    gray = ref
+
+gray = cv.bitwise_not(gray)
+bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 15, -2)
+horizontal = np.copy(bw)
+# Specify size on horizontal axis
+cols = horizontal.shape[1]
+horizontal_size = cols // 30
+# Create structure element for extracting horizontal lines through morphology operations
+horizontalStructure = cv.getStructuringElement(cv.MORPH_RECT, (horizontal_size, 1))
+# Apply morphology operations
+horizontal = cv.erode(horizontal, horizontalStructure)
+horizontal = cv.dilate(horizontal, horizontalStructure)
+
+lines = cv.bitwise_not(horizontal)
+
+blur = cv.GaussianBlur(lines, (3,3), 0)
+thresh = cv.threshold(blur, 220, 255, cv.THRESH_BINARY_INV)[1]
+
+x1, y1, w1, h1 = cv.boundingRect(thresh)           #  Replaced code
+                                                #
+left1 = (x1, np.argmax(thresh[:, x1]))             #
+right1 = (x1+w1-1, np.argmax(thresh[:, x1+w1-1]))    #
+top1 = (np.argmax(thresh[y1, :]), y1)              #
+bottom1 = (np.argmax(thresh[y1+h1-1, :]), y1+h1-1)
+
+#cv.drawContours(corners1, [c], -1, (36, 255, 12), 2)
+cv.circle(ref2, left1, 8, (0, 50, 255), -1)
+cv.circle(ref2, right1, 8, (0, 255, 255), -1)
+cv.circle(ref2, top1, 8, (255, 50, 0), -1)
+cv.circle(ref2, bottom1, 8, (255, 255, 0), -1)
+print('left: {}'.format(left))
+print('right: {}'.format(right))
+print('top: {}'.format(top))
+print('bottom: {}'.format(bottom))
+
+show_wait_destroy("ssref", ref2)
