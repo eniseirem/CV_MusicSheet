@@ -120,10 +120,13 @@ H=inp.shape[0]
 W=inp.shape[1]
 dst = np.array([[0, 0],   [W, 0],   [W, H],    [0, H]], np.float32)
 h, status = cv.findHomography(point_inp, dst) # src, dst
+M = cv.getPerspectiveTransform(point_inp,dst)
 dst = cv.warpPerspective(inp, h, (W,H)) #wraped image
 
 cv.waitKey(0)
 show_wait_destroy("homograpghy", dst)
+dst = cv.warpPerspective(inp, M, (W,H)) #wraped image
+show_wait_destroy("pers", dst)
 
 #%% detect notes
 if len(dst.shape) != 2:
@@ -140,8 +143,57 @@ sm = remove_lines(bw2, inp_sheet2)
 #I didn't like the result of removed lines so lets try cutting the image
 
 sm = remove_lines(bw2, inp_sheet)
+
+
+vertical = np.copy(bw)
+# Specify size on vertical axis
+rows = vertical.shape[0]
+verticalsize = rows // 30
+# Create structure element for extracting vertical lines through morphology operations
+verticalStructure = cv.getStructuringElement(cv.MORPH_RECT, (1, verticalsize))
+# Apply morphology operations
+vertical = cv.erode(vertical, verticalStructure)
+vertical = cv.dilate(vertical, verticalStructure)
+# Show extracted vertical lines
+cut1 = cut(inp,x, y, w, h1, "cut")
+if len(cut1.shape) != 2:
+    gray = cv.cvtColor(cut1, cv.COLOR_BGR2GRAY)
+else:
+    gray = cut1
+gray = cv.bitwise_not(gray)
+bw1 = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 15, -2)
+#horizontal_kernel = cv.getStructuringElement(cv.MORPH_RECT, (25, 1))
+#find lines
+Lines = np.copy(bw1)
+L = rows // 30
+L_Structure = cv.getStructuringElement(cv.MORPH_RECT, (1, L))
+detected_lines = cv.morphologyEx(Lines, cv.MORPH_OPEN, L_Structure, iterations=2)
+cnts = cv.findContours(detected_lines, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE)
+cnts = cnts[0] if len(cnts) == 2 else cnts[1]
+for c in cnts:
+    cv.drawContours(inp_sheet, [c], -1, (255, 255, 255), 2)
+# Repair image
+repair_kernel = cv.getStructuringElement(cv.MORPH_RECT, (1, verticalsize))
+result_L = 255 - cv.morphologyEx(255 - cut1, cv.MORPH_CLOSE, repair_kernel, iterations=1)
+show_wait_destroy("all_lines", result_L)
+
+#%% cut them
 cut = cut(sm,x, y, w, h1, "cut")
 cut2 =np.copy(cut)
+# cut3 =np.copy(cut)
+# blurred=cv.blur(result_L,(23,51))#blur the image
+# gray=cv.cvtColor(blurred,cv.COLOR_BGR2GRAY)#gray scale
+# st = cv.getStructuringElement(cv.MORPH_RECT, (1, L))
+# dt = cv.morphologyEx(result_L, cv.MORPH_OPEN, st, iterations=2)
+# cnts,hierachy=cv.findContours(dt,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE)#detect contoursi = 0
+# i=0
+# for c in cnts:
+#     # get the bounding rect
+#     x, y, w, h = cv.boundingRect(c)
+#     # to save the images
+#     cv.imwrite('img_{}.jpg'.format(i), cut3[y:y+h,x:x+w])
+#     i += 1
+
 if len(cut.shape) != 2:
     gray = cv.cvtColor(cut, cv.COLOR_BGR2GRAY)
 else:
@@ -151,7 +203,94 @@ bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY
 circle_inp = np.copy(bw)
 img_blur = cv.medianBlur(gray, 5)
 
-circles = cv.HoughCircles(img_blur, cv.HOUGH_GRADIENT, 1, cut2.shape[0]/64, param1=200, param2=10, minRadius=5, maxRadius=30)
+# circles = cv.HoughCircles(img_blur, cv.HOUGH_GRADIENT, 1, cut2.shape[0]/64, param1=200, param2=10, minRadius=15, maxRadius=20)
+# # # Draw detected circles
+# # if circles is not None:
+# #     circles = np.uint16(np.around(circles))
+# #     for i in circles[0, :]:
+# #         # Draw outer circle
+# #         cv.circle(cut2, (i[0], i[1]), i[2], (0, 255, 0), 2)
+# #         # Draw inner circle
+# #         cv.circle(cut2, (i[0], i[1]), 2, (0, 0, 255), 3)
+# #
+# # show_wait_destroy("circles", cut2)
+#
+# from skimage import data, color, img_as_ubyte
+# from skimage.feature import canny
+# from skimage.transform import hough_ellipse
+# from skimage.draw import ellipse_perimeter
+#
+# edges = canny(img_blur, sigma=2.0,
+#               low_threshold=0.55, high_threshold=0.8)
+#
+# result = hough_ellipse(edges, accuracy=20, threshold=250,
+#                        min_size=100, max_size=120)
+# result.sort(order='accumulator')
+#
+# best = list(result[-1])
+# yc, xc, a, b = [int(round(x)) for x in best[1:5]]
+# orientation = best[5]
+#
+# # Draw the ellipse on the original image
+# cy, cx = ellipse_perimeter(yc, xc, a, b, orientation)
+# cut2[cy, cx] = (0, 0, 255)
+# # Draw the edge (white) and the resulting ellipse (red)
+# edges = color.gray2rgb(img_as_ubyte(edges))
+# edges[cy, cx] = (250, 0, 0)
+#
+# fig2, (ax1, ax2) = plt.subplots(ncols=2, nrows=1, figsize=(8, 4),
+#                                 sharex=True, sharey=True)
+#
+# show_wait_destroy("circles-2", edges)
+
+## finding all staffs and notes
+import random as rng
+rng.seed(12345)
+def thresh_callback(val):
+    threshold = val
+
+    canny_output = cv.Canny(src_gray, threshold, threshold * 2)
+
+    contours, _ = cv.findContours(canny_output, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+
+    # Find the rotated rectangles and ellipses for each contour
+    minRect = [None] * len(contours)
+    minEllipse = [None] * len(contours)
+    for i, c in enumerate(contours):
+        minRect[i] = cv.minAreaRect(c)
+        if c.shape[0] > 5:
+            minEllipse[i] = cv.fitEllipse(c)
+    # Draw contours + rotated rects + ellipses
+
+    drawing = np.zeros((canny_output.shape[0], canny_output.shape[1], 3), dtype=np.uint8)
+
+    for i, c in enumerate(contours):
+        color = (rng.randint(0, 256), rng.randint(0, 256), rng.randint(0, 256))
+        # contour
+        cv.drawContours(drawing, contours, i, color)
+        # # ellipse
+        # if c.shape[0] > 5:
+        #     cv.ellipse(drawing, minEllipse[i], color, 2)
+        # # rotated rectangle
+        # box = cv.boxPoints(minRect[i])
+        # box = np.intp(box)  # np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
+        # cv.drawContours(drawing, [box], 0, color)
+
+    cv.imshow('Contours', drawing)
+
+
+src = cut2
+# Convert image to gray and blur it
+src_gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
+src_gray = cv.blur(src_gray, (3, 3))
+max_thresh = 255
+thresh = 100  # initial threshold
+pic = thresh_callback(thresh)
+cv.waitKey()
+pic = cv.bitwise_not(pic)
+bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 15, -2)
+pic_blur = cv.blur(bw, (3, 3))
+circles = cv.HoughCircles(pic_blur, cv.HOUGH_GRADIENT, 1, cut2.shape[0]/64, param1=200, param2=10, minRadius=10, maxRadius=20)
 # Draw detected circles
 if circles is not None:
     circles = np.uint16(np.around(circles))
@@ -161,4 +300,4 @@ if circles is not None:
         # Draw inner circle
         cv.circle(cut2, (i[0], i[1]), 2, (0, 0, 255), 3)
 
-show_wait_destroy("circles", cut2)
+show_wait_destroy("circles-notes", cut2)
