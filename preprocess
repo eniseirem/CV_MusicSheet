@@ -49,7 +49,7 @@ def _lines(horizontal,name):
     horizontal = cv.erode(horizontal, horizontalStructure)
     horizontal = cv.dilate(horizontal, horizontalStructure)
     # Show extracted horizontal lines
-    show_wait_destroy(name, horizontal)
+    #show_wait_destroy(name, horizontal)
     return horizontal
 
 horizontal = _lines(horizontal,"lines")
@@ -65,7 +65,7 @@ def remove_lines(b,inp):
     # Repair image
     repair_kernel = cv.getStructuringElement(cv.MORPH_RECT, (1,6))
     result = 255 - cv.morphologyEx(255 - inp, cv.MORPH_CLOSE, repair_kernel, iterations=1)
-    show_wait_destroy("removed lines", result)
+    #show_wait_destroy("removed lines", result)
     return result
 
 
@@ -99,13 +99,13 @@ def corners(pic,detect, name):
     #print('right: {}'.format(right))
     #print('top: {}'.format(top))
     #print('bottom: {}'.format(bottom))
-    show_wait_destroy(name, pic)
+    #show_wait_destroy(name, pic)
     return pic, me2, me4, me1, me5, x,y,w,h
 
 def cut(pic, x,y,w,h, name):
     roi = pic[y:y + h, x:x + w]
     roi = cv.resize(roi, (w, h))
-    show_wait_destroy(name, roi)
+    #show_wait_destroy(name, roi)
     return roi
 
 lines = cv.bitwise_not(horizontal)
@@ -121,12 +121,12 @@ W=inp.shape[1]
 dst = np.array([[0, 0],   [W, 0],   [W, H],    [0, H]], np.float32)
 h, status = cv.findHomography(point_inp, dst) # src, dst
 M = cv.getPerspectiveTransform(point_inp,dst)
-dst = cv.warpPerspective(inp, h, (W,H)) #wraped image
+#dst = cv.warpPerspective(inp, h, (W,H)) #wraped image
 
 cv.waitKey(0)
-show_wait_destroy("homograpghy", dst)
+#show_wait_destroy("homograpghy", dst)
 dst = cv.warpPerspective(inp, M, (W,H)) #wraped image
-show_wait_destroy("pers", dst)
+#show_wait_destroy("pers", dst)
 
 #%% detect notes
 if len(dst.shape) != 2:
@@ -176,10 +176,43 @@ for c in cnts:
 repair_kernel = cv.getStructuringElement(cv.MORPH_RECT, (1, verticalsize))
 result_L = 255 - cv.morphologyEx(255 - cut1, cv.MORPH_CLOSE, repair_kernel, iterations=1)
 show_wait_destroy("all_lines", result_L)
+thresh = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)[1]
 
-#%% cut them
+# find contours and get one with area about 180*35
+# draw all contours in green and accepted ones in red
+contours = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
+contours = contours[0] if len(contours) == 2 else contours[1]
+#area_thresh = 0
+min_area = 0.95*180*35
+max_area = 1.05*180*35
+result = np.copy(result_L)
+for c in contours:
+    area = cv.contourArea(c)
+    contours= cv.drawContours(result, [c], -1, (0, 255, 0), 1)
+    if area > min_area and area < max_area:
+        contours= cv.drawContours(result, [c], -1, (0, 0, 255), 1)
+
+
+# save result
+cv.imwrite("box_found.png", result)
+
+# show images
+cv.imshow("GRAY", gray)
+cv.imshow("THRESH", thresh)
+cv.imshow("RESULT", result)
+cv.waitKey(0)
+
+
+#%%%%
+
+
+
+
+
+# #%% cut them
 cut = cut(sm,x, y, w, h1, "cut")
 cut2 =np.copy(cut)
+cut4 =np.copy(cut)
 # cut3 =np.copy(cut)
 # blurred=cv.blur(result_L,(23,51))#blur the image
 # gray=cv.cvtColor(blurred,cv.COLOR_BGR2GRAY)#gray scale
@@ -268,15 +301,15 @@ def thresh_callback(val):
         color = (rng.randint(0, 256), rng.randint(0, 256), rng.randint(0, 256))
         # contour
         cv.drawContours(drawing, contours, i, color)
-        # # ellipse
-        # if c.shape[0] > 5:
-        #     cv.ellipse(drawing, minEllipse[i], color, 2)
-        # # rotated rectangle
-        # box = cv.boxPoints(minRect[i])
-        # box = np.intp(box)  # np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
-        # cv.drawContours(drawing, [box], 0, color)
+        # ellipse
+        #if c.shape[0] > 5:
+        #   cv.ellipse(drawing, minEllipse[i], color, 2)
+        # rotated rectangle
+        box = cv.boxPoints(minRect[i])
+        box = np.intp(box)  # np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
+        cv.drawContours(drawing, [box], 0, color)
 
-    cv.imshow('Contours', drawing)
+    show_wait_destroy("counters", drawing)
 
 
 src = cut2
@@ -285,6 +318,8 @@ src_gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
 src_gray = cv.blur(src_gray, (3, 3))
 max_thresh = 255
 thresh = 100  # initial threshold
+
+
 pic = thresh_callback(thresh)
 cv.waitKey()
 pic = cv.bitwise_not(pic)
@@ -300,4 +335,7 @@ if circles is not None:
         # Draw inner circle
         cv.circle(cut2, (i[0], i[1]), 2, (0, 0, 255), 3)
 
-show_wait_destroy("circles-notes", cut2)
+#show_wait_destroy("circles-notes", cut2)
+
+#%% staff reading
+
