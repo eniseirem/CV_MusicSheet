@@ -1,11 +1,6 @@
 import sys
 import cv2 as cv
 import numpy as np
-from matplotlib import pyplot as plt
-from collections import Counter
-from copy import deepcopy
-from PIL import Image
-#from midiutil.MidiFile import MIDIFile
 
 ####### this is the sample code from the given source.
 
@@ -27,15 +22,13 @@ if len(inp_sheet.shape) != 2:
 else:
     gray = inp_sheet
 
-#show_wait_destroy("gray", gray)
+show_wait_destroy("gray", gray)
 
 # Apply adaptiveThreshold at the bitwise_not of gray, notice the ~ symbol
 gray = cv.bitwise_not(gray)
 bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY, 15, -2)
-# Show binary image
-#show_wait_destroy("binary", bw)
 
-# Create the images that will use to extract the horizontal and vertical lines
+# Create the images that will use to extract the horizontal lines
 horizontal = np.copy(bw)
 bw2 = np.copy(bw)
 
@@ -65,7 +58,7 @@ def remove_lines(b,inp):
     # Repair image
     repair_kernel = cv.getStructuringElement(cv.MORPH_RECT, (1,6))
     result = 255 - cv.morphologyEx(255 - inp, cv.MORPH_CLOSE, repair_kernel, iterations=1)
-    #show_wait_destroy("removed lines", result)
+    show_wait_destroy("removed lines", result)
     return result
 
 
@@ -75,37 +68,22 @@ def corners(pic,detect, name):
     thresh = cv.threshold(blur, 220, 255, cv.THRESH_BINARY_INV)[1]
 
     x, y, w, h = cv.boundingRect(thresh)
-   # left = (x, np.argmax(thresh[:, x]))
-    #right = (x + w - 1, np.argmax(thresh[:, x + w - 1]))
-    #top = (np.argmax(thresh[y, :]), y)
-   # bottom = (np.argmax(thresh[y + h - 1, :]), y + h - 1)
+
     me2 = (np.argmax(thresh[y, :]), y) #leftup
     me1 = (x + w - 1, y+h-1) #rightdown
     me4 = (x + w - 1, y) #rightupmost
-   # me3 = ( np.argmax(thresh[x + w - 1, :]),np.argmax(thresh[:, y])) #rightupmost
-   # me3 = (np.argmax(thresh[y, :]), y + h - 1) #leftdown
     me5 = (x, np.argmax(thresh[:, x])) #leftdown
-    # cv.drawContours(corners1, [c], -1, (36, 255, 12), 2)
-    #cv.circle(pic, left, 8, (0, 50, 255), -1)
-    #cv.circle(pic, right, 8, (0, 50, 255), -1) #
-   # cv.circle(pic, top, 8, (255, 50, 0), -1)
-   # cv.circle(pic, bottom, 8, (255, 50, 0), -1)
     cv.circle(pic, me2, 8, (255, 255, 0), -1)
     cv.circle(pic, me1, 8, (255, 255, 0), -1)
     cv.circle(pic, me4, 8, (255, 255, 0), -1)
-   # cv.circle(pic, me3, 8, (255, 255, 0), -1)
     cv.circle(pic, me5, 8, (255, 255, 0), -1)
-    #print('left: {}'.format(left))
-    #print('right: {}'.format(right))
-    #print('top: {}'.format(top))
-    #print('bottom: {}'.format(bottom))
-    #show_wait_destroy(name, pic)
+
     return pic, me2, me4, me1, me5, x,y,w,h
 
 def cut(pic, x,y,w,h, name):
     roi = pic[y:y + h, x:x + w]
     roi = cv.resize(roi, (w, h))
-    #show_wait_destroy(name, roi)
+    show_wait_destroy(name, roi)
     return roi
 
 lines = cv.bitwise_not(horizontal)
@@ -113,8 +91,7 @@ corners1, left, right, top, bottom, x, y, w, h1= corners(corners1,lines,"corners
 point_inp = np.array([left,right,top,bottom], dtype=np.float32)
 
 
-#%%reference pic
-#
+#%%HOMOGRAPHY
 
 H=inp.shape[0]
 W=inp.shape[1]
@@ -124,7 +101,7 @@ M = cv.getPerspectiveTransform(point_inp,dst)
 #dst = cv.warpPerspective(inp, h, (W,H)) #wraped image
 
 cv.waitKey(0)
-#show_wait_destroy("homograpghy", dst)
+show_wait_destroy("homograpghy", dst)
 dst = cv.warpPerspective(inp, M, (W,H)) #wraped image
 #show_wait_destroy("pers", dst)
 
@@ -143,7 +120,6 @@ sm = remove_lines(bw2, inp_sheet2)
 #I didn't like the result of removed lines so lets try cutting the image
 
 sm = remove_lines(bw2, inp_sheet)
-
 
 vertical = np.copy(bw)
 # Specify size on vertical axis
@@ -178,8 +154,8 @@ result_L = 255 - cv.morphologyEx(255 - cut1, cv.MORPH_CLOSE, repair_kernel, iter
 show_wait_destroy("all_lines", result_L)
 thresh = cv.threshold(gray, 30, 255, cv.THRESH_BINARY)[1]
 
-# find contours and get one with area about 180*35
-# draw all contours in green and accepted ones in red
+# find contours and get area
+# draw all contours in green
 contours = cv.findContours(thresh, cv.RETR_TREE, cv.CHAIN_APPROX_SIMPLE)
 contours = contours[0] if len(contours) == 2 else contours[1]
 #area_thresh = 0
@@ -213,19 +189,7 @@ cv.waitKey(0)
 cut = cut(sm,x, y, w, h1, "cut")
 cut2 =np.copy(cut)
 cut4 =np.copy(cut)
-# cut3 =np.copy(cut)
-# blurred=cv.blur(result_L,(23,51))#blur the image
-# gray=cv.cvtColor(blurred,cv.COLOR_BGR2GRAY)#gray scale
-# st = cv.getStructuringElement(cv.MORPH_RECT, (1, L))
-# dt = cv.morphologyEx(result_L, cv.MORPH_OPEN, st, iterations=2)
-# cnts,hierachy=cv.findContours(dt,cv.RETR_EXTERNAL,cv.CHAIN_APPROX_SIMPLE)#detect contoursi = 0
-# i=0
-# for c in cnts:
-#     # get the bounding rect
-#     x, y, w, h = cv.boundingRect(c)
-#     # to save the images
-#     cv.imwrite('img_{}.jpg'.format(i), cut3[y:y+h,x:x+w])
-#     i += 1
+
 
 if len(cut.shape) != 2:
     gray = cv.cvtColor(cut, cv.COLOR_BGR2GRAY)
@@ -236,45 +200,7 @@ bw = cv.adaptiveThreshold(gray, 255, cv.ADAPTIVE_THRESH_MEAN_C, cv.THRESH_BINARY
 circle_inp = np.copy(bw)
 img_blur = cv.medianBlur(gray, 5)
 
-# circles = cv.HoughCircles(img_blur, cv.HOUGH_GRADIENT, 1, cut2.shape[0]/64, param1=200, param2=10, minRadius=15, maxRadius=20)
-# # # Draw detected circles
-# # if circles is not None:
-# #     circles = np.uint16(np.around(circles))
-# #     for i in circles[0, :]:
-# #         # Draw outer circle
-# #         cv.circle(cut2, (i[0], i[1]), i[2], (0, 255, 0), 2)
-# #         # Draw inner circle
-# #         cv.circle(cut2, (i[0], i[1]), 2, (0, 0, 255), 3)
-# #
-# # show_wait_destroy("circles", cut2)
-#
-# from skimage import data, color, img_as_ubyte
-# from skimage.feature import canny
-# from skimage.transform import hough_ellipse
-# from skimage.draw import ellipse_perimeter
-#
-# edges = canny(img_blur, sigma=2.0,
-#               low_threshold=0.55, high_threshold=0.8)
-#
-# result = hough_ellipse(edges, accuracy=20, threshold=250,
-#                        min_size=100, max_size=120)
-# result.sort(order='accumulator')
-#
-# best = list(result[-1])
-# yc, xc, a, b = [int(round(x)) for x in best[1:5]]
-# orientation = best[5]
-#
-# # Draw the ellipse on the original image
-# cy, cx = ellipse_perimeter(yc, xc, a, b, orientation)
-# cut2[cy, cx] = (0, 0, 255)
-# # Draw the edge (white) and the resulting ellipse (red)
-# edges = color.gray2rgb(img_as_ubyte(edges))
-# edges[cy, cx] = (250, 0, 0)
-#
-# fig2, (ax1, ax2) = plt.subplots(ncols=2, nrows=1, figsize=(8, 4),
-#                                 sharex=True, sharey=True)
-#
-# show_wait_destroy("circles-2", edges)
+
 
 ## finding all staffs and notes
 import random as rng
@@ -301,10 +227,6 @@ def thresh_callback(val):
         color = (rng.randint(0, 256), rng.randint(0, 256), rng.randint(0, 256))
         # contour
         cv.drawContours(drawing, contours, i, color)
-        # ellipse
-        #if c.shape[0] > 5:
-        #   cv.ellipse(drawing, minEllipse[i], color, 2)
-        # rotated rectangle
         box = cv.boxPoints(minRect[i])
         box = np.intp(box)  # np.intp: Integer used for indexing (same as C ssize_t; normally either int32 or int64)
         cv.drawContours(drawing, [box], 0, color)
@@ -335,6 +257,6 @@ if circles is not None:
         # Draw inner circle
         cv.circle(cut2, (i[0], i[1]), 2, (0, 0, 255), 3)
 
-#show_wait_destroy("circles-notes", cut2)
+show_wait_destroy("circles-notes", cut2)
 
 
